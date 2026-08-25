@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, render_template_string
 
 app = Flask(__name__)
 
-# Diccionario dinámico: vacío al arrancar, se llena conforme los camiones transmiten
+# Diccionario dinámico de vehículos activos
 vehiculos_estado = {}
 
 # 1. INTERFAZ DEL CLIENTE (VECINOS) - Se ve en la raíz "/"
@@ -15,7 +15,10 @@ def cliente_mapa():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>Ruta Basura en Vivo - ATA Ingeniería</title>
+        <!-- Leaflet CSS -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+        <!-- Leaflet Routing Machine CSS para seguir las calles -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
         <style>
             * { box-sizing: border-box; }
             html, body { 
@@ -108,6 +111,9 @@ def cliente_mapa():
                 font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center;
             }
 
+            /* Ocultar las instrucciones de texto predeterminadas de Leaflet Routing Machine para mantener limpio el mapa */
+            .leaflet-routing-container { display: none !important; }
+
             @media (max-width: 768px) {
                 body { flex-direction: column; }
                 #map { width: 100%; height: 30vh; flex: 0 0 30vh; }
@@ -146,7 +152,7 @@ def cliente_mapa():
 
                 <h2>🚚 Rutas Activas en Vivo</h2>
                 <p class="instructions">
-                    <b>Selecciona una ruta activa</b> para hacer zoom y ver sus unidades en tiempo real.
+                    <b>Selecciona una ruta activa</b> para hacer zoom y ver su recorrido exacto por las calles.
                 </p>
 
                 <button class="btn-gps-usuario" onclick="ubicarCliente()">📍 Ubicar mi posición / Casa</button>
@@ -172,7 +178,9 @@ def cliente_mapa():
 
         <div id="map"></div>
 
+        <!-- Leaflet JS y Leaflet Routing Machine JS -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
         <script>
             const map = L.map('map', { zoomControl: false }).setView([5.3377, -72.3961], 15);
             L.control.zoom({ position: 'topright' }).addTo(map);
@@ -183,14 +191,13 @@ def cliente_mapa():
             }).addTo(map);
 
             let rutaActivaId = null;
-            let intervaloConsulta = null;
             let marcadorUsuario = null;
             let posicionUsuarioCoords = null;
             let centradoInicialRealizado = false;
 
             let marcadoresVehiculos = {}; 
-            let polylinesVehiculos = {};
-            let vehiculosBloqueados = new Set(); // Conjunto para bloquear vehículos ya seleccionados
+            let controlRutasOSRM = {}; // Almacena el trazado vial de cada vehículo por calles reales
+            let vehiculosBloqueados = new Set();
 
             const iconoCamion = L.divIcon({
                 className: 'custom-camion-icon',
@@ -320,14 +327,20 @@ def cliente_mapa():
                         let historial = v.historial || v.history || v.coordenadas;
 
                         if (vRuta === rutaActivaId && historial && historial.length > 0) {
-                            vehiculosBloqueados.add(vIdVehiculo); // Bloquear vehículo asignado
+                            vehiculosBloqueados.add(vIdVehiculo);
                             activosCount++;
+                            
+                            let puntoInicio = historial[0];
                             let ultimaPos = historial[historial.length - 1];
 
+                            if (!Array.isArray(puntoInicio)) {
+                                puntoInicio = [puntoInicio.lat || puntoInicio.latitude, puntoInicio.lng || puntoInicio.lon || puntoInicio.longitude];
+                            }
                             if (!Array.isArray(ultimaPos)) {
                                 ultimaPos = [ultimaPos.lat || ultimaPos.latitude, ultimaPos.lng || ultimaPos.lon || ultimaPos.longitude];
                             }
 
+                            // Actualizar marcador del camión
                             if (!marcadoresVehiculos[vIdVehiculo]) {
                                 marcadoresVehiculos[vIdVehiculo] = L.marker(ultimaPos, { icon: iconoCamion }).addTo(map)
                                     .bindPopup(`<b>${vNombre}</b><br>Unidad en servicio`);
@@ -336,12 +349,29 @@ def cliente_mapa():
                             }
                             elementosZoom.push(marcadoresVehiculos[vIdVehiculo]);
 
-                            if (!polylinesVehiculos[vIdVehiculo]) {
-                                polylinesVehiculos[vIdVehiculo] = L.polyline(historial, {
-                                    color: '#007bff', weight: 6, opacity: 0.8, lineCap: 'round', lineJoin: 'round'
+                            // Ruteo inteligente siguiendo las calles reales con OSRM
+                            if (!controlRutasOSRM[vIdVehiculo]) {
+                                controlRutasOSRM[vIdVehiculo] = L.Routing.control({
+                                    waypoints: [
+                                        L.latLng(puntoInicio[0], puntoInicio[1]),
+                                        L.latLng(ultimaPos[0], ultimaPos[1])
+                                    ],
+                                    router: L.Routing.osrmv1({
+                                        serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                    }),
+                                    lineOptions: {
+                                        styles: [{ color: '#007bff', weight: 6, opacity: 0.8 }]
+                                    },
+                                    addWaypoints: false,
+                                    draggableWaypoints: false,
+                                    fitSelectedRoutes: false,
+                                    show: false
                                 }).addTo(map);
                             } else {
-                                polylinesVehiculos[vIdVehiculo].setLatLngs(historial);
+                                controlRutasOSRM[vIdVehiculo].setWaypoints([
+                                    L.latLng(puntoInicio[0], puntoInicio[1]),
+                                    L.latLng(ultimaPos[0], ultimaPos[1])
+                                ]);
                             }
 
                             if (posicionUsuarioCoords) {
