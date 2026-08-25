@@ -111,7 +111,6 @@ def cliente_mapa():
                 font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center;
             }
 
-            /* Ocultar las instrucciones de texto de Leaflet Routing Machine */
             .leaflet-routing-container { display: none !important; }
 
             @media (max-width: 768px) {
@@ -197,7 +196,6 @@ def cliente_mapa():
 
             let marcadoresVehiculos = {}; 
             let controlRutasOSRM = {}; 
-            let vehiculosBloqueados = new Set();
 
             const iconoCamion = L.divIcon({
                 className: 'custom-camion-icon',
@@ -281,18 +279,14 @@ def cliente_mapa():
                     let vehiculos = Array.isArray(dataRaw) ? dataRaw : Object.values(dataRaw);
 
                     let rutasActivasMap = {};
-                    vehiculos.forEach((v, index) => {
-                        let vRuta = v.ruta || v.route || v.id_ruta;
-                        let vIdVehiculo = v.vehiculo_id || v.id || index;
-                        let historial = v.historial || v.history || v.coordenadas;
-
+                    vehiculos.forEach((v) => {
+                        let vRuta = v.ruta;
+                        let historial = v.historial;
                         if (vRuta && historial && historial.length > 0) {
-                            if (!vehiculosBloqueados.has(vIdVehiculo)) {
-                                if (!rutasActivasMap[vRuta]) {
-                                    rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
-                                }
-                                rutasActivasMap[vRuta].cantidad++;
+                            if (!rutasActivasMap[vRuta]) {
+                                rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
                             }
+                            rutasActivasMap[vRuta].cantidad++;
                         }
                     });
 
@@ -320,25 +314,16 @@ def cliente_mapa():
                     let activosCount = 0;
                     let menorDistanciaMetros = 9999999;
 
-                    vehiculos.forEach((v, index) => {
-                        let vRuta = v.ruta || v.route || v.id_ruta;
-                        let vIdVehiculo = v.vehiculo_id || v.id || index;
-                        let vNombre = v.nombre || v.name || ('Camión ' + vIdVehiculo);
-                        let historial = v.historial || v.history || v.coordenadas;
+                    vehiculos.forEach((v) => {
+                        let vRuta = v.ruta;
+                        let vIdVehiculo = v.vehiculo_id;
+                        let vNombre = v.nombre;
+                        let historial = v.historial;
 
                         if (vRuta === rutaActivaId && historial && historial.length > 0) {
-                            vehiculosBloqueados.add(vIdVehiculo);
                             activosCount++;
-                            
                             let puntoInicio = historial[0];
                             let ultimaPos = historial[historial.length - 1];
-
-                            if (!Array.isArray(puntoInicio)) {
-                                puntoInicio = [puntoInicio.lat || puntoInicio.latitude, puntoInicio.lng || puntoInicio.lon || puntoInicio.longitude];
-                            }
-                            if (!Array.isArray(ultimaPos)) {
-                                ultimaPos = [ultimaPos.lat || ultimaPos.latitude, ultimaPos.lng || ultimaPos.lon || ultimaPos.longitude];
-                            }
 
                             if (!marcadoresVehiculos[vIdVehiculo]) {
                                 marcadoresVehiculos[vIdVehiculo] = L.marker(ultimaPos, { icon: iconoCamion }).addTo(map)
@@ -468,7 +453,8 @@ def panel_conductor():
 
                 if (!transmitiendo) {
                     if (!navigator.geolocation) return alert("Sin soporte de GPS.");
-                    if (!nombreInput.value.trim()) return alert("Por favor ingresa el nombre del camión.");
+                    const nombreVehiculo = nombreInput.value.trim();
+                    if (!nombreVehiculo) return alert("Por favor ingresa el nombre del camión.");
 
                     transmitiendo = true;
                     esPrimerPunto = true;
@@ -482,24 +468,30 @@ def panel_conductor():
                         async (position) => {
                             const lat = position.coords.latitude;
                             const lng = position.coords.longitude;
-                            const vehiculoId = nombreInput.value.trim().toLowerCase().replace(/\\s+/g, '_');
+                            const vehiculoId = nombreVehiculo.toLowerCase().replace(/\\s+/g, '_');
                             const rutaAsignada = rutaSelect.value;
 
                             estadoDiv.innerHTML = `Transmitiendo en vivo 🟢<br>Zona: ${rutaAsignada}<br>Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
 
                             try {
-                                await fetch('/api/actualizar-gps', {
+                                const response = await fetch('/api/actualizar-gps', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ 
                                         vehiculo_id: vehiculoId, 
-                                        nombre: nombreInput.value.trim(),
+                                        nombre: nombreVehiculo,
                                         ruta: rutaAsignada,
                                         lat: lat, 
                                         lng: lng,
                                         reiniciarHistorial: esPrimerPunto 
                                     })
                                 });
+                                const result = await response.json();
+                                if(result.status === "error") {
+                                    alert(result.message);
+                                    toggleTransmision(); // Apagar si el servidor lo rechazó por duplicado
+                                    return;
+                                }
                                 esPrimerPunto = false;
                             } catch (e) { console.error("Error al enviar GPS", e); }
                         },
@@ -521,7 +513,7 @@ def panel_conductor():
     </html>
     """)
 
-# 3. API DINÁMICA: Registra o actualiza cualquier camión al vuelo
+# 3. API DINÁMICA: Bloquea estrictamente IDs duplicados en el backend
 @app.route('/api/actualizar-gps', methods=['POST'])
 def actualizar_gps():
     data = request.json
@@ -531,6 +523,15 @@ def actualizar_gps():
     lat = data.get('lat')
     lng = data.get('lng')
     reiniciar = data.get('reiniciarHistorial', False)
+
+    # Validar si este ID ya está registrado y activo por otra sesión/pestaña
+    if vehiculo_id in vehiculos_estado and vehiculos_estado[vehiculo_id].get('activo', True):
+        # Si es la primera inserción de una pestaña NUEVA intentando duplicar un carro ya existente
+        if reiniciar:
+            return jsonify({
+                "status": "error", 
+                "message": f"❌ El vehículo '{nombre}' ya se encuentra transmitiendo en este momento. Usa un número o nombre diferente."
+            }), 400
 
     if vehiculo_id not in vehiculos_estado:
         vehiculos_estado[vehiculo_id] = {
@@ -556,6 +557,7 @@ def actualizar_gps():
 # 4. API PARA CONSULTAR TODOS LOS VEHÍCULOS ACTIVOS
 @app.route('/api/obtener-vehiculos', methods=['GET'])
 def obtener_vehiculos():
+    # Limpiamos o devolvemos únicamente los estados
     return jsonify(vehiculos_estado)
 
 if __name__ == '__main__':
