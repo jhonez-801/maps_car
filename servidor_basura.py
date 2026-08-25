@@ -111,7 +111,7 @@ def cliente_mapa():
                 font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center;
             }
 
-            /* Ocultar las instrucciones de texto predeterminadas de Leaflet Routing Machine para mantener limpio el mapa */
+            /* Ocultar las instrucciones de texto de Leaflet Routing Machine */
             .leaflet-routing-container { display: none !important; }
 
             @media (max-width: 768px) {
@@ -196,7 +196,7 @@ def cliente_mapa():
             let centradoInicialRealizado = false;
 
             let marcadoresVehiculos = {}; 
-            let controlRutasOSRM = {}; // Almacena el trazado vial de cada vehículo por calles reales
+            let controlRutasOSRM = {}; 
             let vehiculosBloqueados = new Set();
 
             const iconoCamion = L.divIcon({
@@ -340,7 +340,6 @@ def cliente_mapa():
                                 ultimaPos = [ultimaPos.lat || ultimaPos.latitude, ultimaPos.lng || ultimaPos.lon || ultimaPos.longitude];
                             }
 
-                            // Actualizar marcador del camión
                             if (!marcadoresVehiculos[vIdVehiculo]) {
                                 marcadoresVehiculos[vIdVehiculo] = L.marker(ultimaPos, { icon: iconoCamion }).addTo(map)
                                     .bindPopup(`<b>${vNombre}</b><br>Unidad en servicio`);
@@ -349,7 +348,6 @@ def cliente_mapa():
                             }
                             elementosZoom.push(marcadoresVehiculos[vIdVehiculo]);
 
-                            // Ruteo inteligente siguiendo las calles reales con OSRM
                             if (!controlRutasOSRM[vIdVehiculo]) {
                                 controlRutasOSRM[vIdVehiculo] = L.Routing.control({
                                     waypoints: [
