@@ -16,19 +16,19 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             width: 100%;
             height: 100%;
-            height: 100dvh; /* <-- CORREGIDO: Ocupa todo el alto real del celular */
             overflow: hidden; 
             background: #f8f9fa; 
         }
 
-        /* El mapa abarca toda la pantalla de forma absoluta */
+        /* El mapa abarca toda la pantalla de forma absoluta y segura en móviles */
         #map { 
             position: absolute;
             top: 0;
+            bottom: 0;
             left: 0;
+            right: 0;
             width: 100%; 
-            height: 100%; 
-            height: 100dvh; /* <-- CORREGIDO: Elimina el espacio blanco inferior */
+            height: auto; 
             z-index: 1;
         }
         
@@ -40,7 +40,6 @@
             width: 380px;
             max-width: 85vw;
             height: 100%;
-            height: 100dvh;
             background: #f8f9fa; 
             box-shadow: 4px 0 15px rgba(0,0,0,0.3); 
             z-index: 2000; 
@@ -202,6 +201,9 @@
             }
             #map {
                 left: 380px;
+                right: 0;
+                top: 0;
+                bottom: 0;
                 width: calc(100% - 380px);
                 height: 100vh;
             }
