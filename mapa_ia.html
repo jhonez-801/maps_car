@@ -20,19 +20,17 @@
             background: #f8f9fa; 
         }
 
-        /* El mapa abarca toda la pantalla de forma absoluta y segura en móviles */
-        #map { 
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            width: 100%; 
-            height: auto; 
+        /* El mapa es la capa base principal ocupando toda la pantalla de forma fija */
+        #map {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
             z-index: 1;
         }
         
-        /* Panel Lateral tipo cajón deslizable */
+        /* Panel Lateral tipo cajón deslizable superpuesto */
         #sidebar { 
             position: fixed;
             top: 0;
@@ -40,6 +38,7 @@
             width: 380px;
             max-width: 85vw;
             height: 100%;
+            height: 100dvh;
             background: #f8f9fa; 
             box-shadow: 4px 0 15px rgba(0,0,0,0.3); 
             z-index: 2000; 
@@ -194,19 +193,29 @@
 
         /* Ajustes para PC */
         @media (min-width: 769px) {
+            body {
+                display: block;
+            }
+
             #sidebar {
                 transform: translateX(0) !important;
-                position: relative;
-                height: 100vh;
-            }
-            #map {
-                left: 380px;
-                right: 0;
+                position: fixed;
+                left: 0;
                 top: 0;
-                bottom: 0;
-                width: calc(100% - 380px);
-                height: 100vh;
+                width: 380px;
+                height: 100dvh;
             }
+
+            #map {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 380px;
+                width: auto;
+                height: 100dvh;
+            }
+
             .floating-menu-btn {
                 display: none !important;
             }
@@ -283,7 +292,24 @@
 
         let marcadoresVehiculos = {}; 
         let polylinesVehiculos = {};
-        let vehiculosBloqueados = new Set();
+
+        // Manejo robusto de redimensionamiento y ajuste dinámico en móviles
+        function ajustarMapa() {
+            setTimeout(() => {
+                map.invalidateSize(true);
+            }, 100);
+        }
+        window.addEventListener('resize', ajustarMapa);
+        window.addEventListener('orientationchange', ajustarMapa);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                ajustarMapa();
+            }
+        });
+
+        setTimeout(() => {
+            map.invalidateSize(true);
+        }, 500);
 
         const iconoCamion = L.divIcon({
             className: 'custom-camion-icon',
@@ -327,8 +353,8 @@
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('open');
             setTimeout(() => {
-                map.invalidateSize();
-            }, 300);
+                map.invalidateSize(true);
+            }, 350);
         }
 
         map.on('dragstart movestart', () => {
@@ -354,7 +380,7 @@
                     
                     if (window.innerWidth <= 768) {
                         document.getElementById('sidebar').classList.remove('open');
-                        setTimeout(() => { map.invalidateSize(); }, 300);
+                        setTimeout(() => { map.invalidateSize(true); }, 350);
                     }
                 },
                 () => alert("No se pudo obtener tu ubicación. Revisa los permisos de GPS."),
@@ -378,7 +404,7 @@
 
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebar').classList.remove('open');
-                setTimeout(() => { map.invalidateSize(); }, 300);
+                setTimeout(() => { map.invalidateSize(true); }, 350);
             }
         }
 
@@ -395,12 +421,10 @@
                     let historial = v.historial || v.history || v.coordenadas;
 
                     if (vRuta && historial && historial.length > 0) {
-                        if (!vehiculosBloqueados.has(vIdVehiculo)) {
-                            if (!rutasActivasMap[vRuta]) {
-                                rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
-                            }
-                            rutasActivasMap[vRuta].cantidad++;
+                        if (!rutasActivasMap[vRuta]) {
+                            rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
                         }
+                        rutasActivasMap[vRuta].cantidad++;
                     }
                 });
 
@@ -435,7 +459,6 @@
                     let historial = v.historial || v.history || v.coordenadas;
 
                     if (vRuta === rutaActivaId && historial && historial.length > 0) {
-                        vehiculosBloqueados.add(vIdVehiculo);
                         activosCount++;
                         let ultimaPos = historial[historial.length - 1];
 
