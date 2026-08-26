@@ -23,20 +23,21 @@
         body {
             display: flex;
             flex-direction: row;
+            position: relative;
         }
         
+        /* Sidebar estilo flotante por defecto en móviles y panel lateral en PC */
         #sidebar { 
             width: 400px; 
             height: 100%; 
             background: #f8f9fa; 
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
-            z-index: 1000; 
+            box-shadow: 2px 0 10px rgba(0,0,0,0.2); 
+            z-index: 1200; 
             padding: 15px; 
             display: flex; 
             flex-direction: column; 
             overflow-y: auto; 
             -webkit-overflow-scrolling: touch;
-            overflow-anchor: none;
             transition: transform 0.3s ease-in-out;
         }
 
@@ -45,9 +46,14 @@
             padding-bottom: 20px;
         }
 
+        /* El mapa ocupa absolutamente todo el fondo de la pantalla */
         #map { 
-            flex: 1; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
             height: 100%; 
+            z-index: 1;
         }
         
         h2 { font-size: 16px; color: #2c3e50; margin-top: 0; margin-bottom: 6px; }
@@ -65,12 +71,12 @@
             color: white;
             border: none;
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             margin-bottom: 15px;
-            font-size: 13px;
+            font-size: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -108,7 +114,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.6);
-            z-index: 2000;
+            z-index: 3000;
             justify-content: center;
             align-items: center;
         }
@@ -161,6 +167,7 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .live-indicator { display: inline-block; width: 8px; height: 8px; background: #28a745; border-radius: 50%; margin-right: 5px; animation: pulse 1.5s infinite; }
 
+        /* Botón flotante para abrir el menú en celulares */
         .floating-menu-btn {
             position: absolute;
             top: 15px;
@@ -168,33 +175,41 @@
             z-index: 1100;
             background: white;
             border: none;
-            width: 45px;
-            height: 45px;
+            padding: 10px 15px;
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            font-size: 20px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #333;
             cursor: pointer;
             display: none;
             align-items: center;
-            justify-content: center;
+            gap: 6px;
         }
 
         @media (max-width: 768px) {
-            body { flex-direction: column; }
-            #map { width: 100%; height: 100vh; flex: 1; }
-            #sidebar { 
-                position: absolute; bottom: 0; left: 0; width: 100%; height: 80vh; 
-                flex: none; box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
-                transform: translateY(100%); transition: transform 0.3s ease-in-out;
+            /* En celular el sidebar se oculta por completo a la izquierda y flota por encima del mapa al abrirse */
+            #sidebar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 85%;
+                max-width: 320px;
+                height: 100%;
+                transform: translateX(-100%);
+                box-shadow: 4px 0 15px rgba(0,0,0,0.3);
             }
-            #sidebar.open { transform: translateY(0); }
+            #sidebar.open {
+                transform: translateX(0);
+            }
             .floating-menu-btn { display: flex; }
         }
     </style>
 </head>
 <body>
 
-    <button class="floating-menu-btn" onclick="toggleSidebar()" id="btn-toggle-movil">☰</button>
+    <!-- Botón flotante visible en celulares para abrir el menú lateral -->
+    <button class="floating-menu-btn" onclick="toggleSidebar()">☰ Menú / Rutas</button>
 
     <div id="modal-conductor">
         <div class="modal-content">
@@ -208,6 +223,7 @@
         </div>
     </div>
 
+    <!-- Panel Lateral / Menú Deslizable -->
     <div id="sidebar">
         <div id="sidebar-content">
             <div class="driver-link-container">
@@ -234,13 +250,14 @@
             </div>
         </div>
 
-        <button class="menu-toggle-btn" onclick="toggleSidebar()">✕ Ocultar Panel</button>
+        <button class="menu-toggle-btn" onclick="toggleSidebar()">✕ Ocultar Menú</button>
 
         <div class="footer-ata">
-            © 2026 <b>ATA</b> (Aplicaciones Tecnológicas Avanzadas). Todos los derechos reservados.
+            © 2026 <b>ATA Ingeniería</b>. Todos los derechos reservados.
         </div>
     </div>
 
+    <!-- Contenedor del Mapa ocupando el 100% de la pantalla -->
     <div id="map"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -252,7 +269,7 @@
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap - <a href="https://www.ata-ingress.com" target="_blank">ATA Ingeniería</a>'
+            attribution: '© OpenStreetMap - <a href="https://www.ata-ingenieria.com" target="_blank">ATA Ingeniería</a>'
         }).addTo(map);
 
         let rutaActivaId = null;
