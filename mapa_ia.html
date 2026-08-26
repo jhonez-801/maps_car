@@ -252,7 +252,7 @@
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap - ATA Ingeniería'
+            attribution: '© OpenStreetMap - <a href="https://www.ata-ingress.com" target="_blank">ATA Ingeniería</a>'
         }).addTo(map);
 
         let rutaActivaId = null;
@@ -263,7 +263,7 @@
 
         let marcadoresVehiculos = {}; 
         let polylinesVehiculos = {};
-        let vehiculosBloqueados = new Set(); // Control de vehículos bloqueados / ya elegidos
+        let vehiculosBloqueados = new Set();
 
         const iconoCamion = L.divIcon({
             className: 'custom-camion-icon',
@@ -305,9 +305,11 @@
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
-            if (window.innerWidth <= 768) {
-                sidebar.classList.toggle('open');
-            }
+            sidebar.classList.toggle('open');
+            // Forzar a Leaflet a recalcular el tamaño cuando se abre o cierra el menú en móviles
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 300);
         }
 
         map.on('dragstart movestart', () => {
@@ -333,6 +335,7 @@
                     
                     if (window.innerWidth <= 768) {
                         document.getElementById('sidebar').classList.remove('open');
+                        setTimeout(() => { map.invalidateSize(); }, 300);
                     }
                 },
                 () => alert("No se pudo obtener tu ubicación. Revisa los permisos de GPS."),
@@ -356,6 +359,7 @@
 
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebar').classList.remove('open');
+                setTimeout(() => { map.invalidateSize(); }, 300);
             }
         }
 
@@ -365,7 +369,6 @@
                 const dataRaw = await res.json();
                 let vehiculos = Array.isArray(dataRaw) ? dataRaw : Object.values(dataRaw);
 
-                // 1. Detectar rutas únicas que tienen vehículos con coordenadas activas
                 let rutasActivasMap = {};
                 vehiculos.forEach((v, index) => {
                     let vRuta = v.ruta || v.route || v.id_ruta;
@@ -373,7 +376,6 @@
                     let historial = v.historial || v.history || v.coordenadas;
 
                     if (vRuta && historial && historial.length > 0) {
-                        // Bloquear vehículos si ya fueron seleccionados en otra lógica o sesión previa
                         if (!vehiculosBloqueados.has(vIdVehiculo)) {
                             if (!rutasActivasMap[vRuta]) {
                                 rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
@@ -383,7 +385,6 @@
                     }
                 });
 
-                // 2. Renderizar dinámicamente solo las rutas activas en el panel lateral
                 const contenedorRutas = document.getElementById('contenedor-rutas');
                 contenedorRutas.innerHTML = '';
 
@@ -415,9 +416,7 @@
                     let historial = v.historial || v.history || v.coordenadas;
 
                     if (vRuta === rutaActivaId && historial && historial.length > 0) {
-                        // Bloquear el vehículo de la lista interactiva de selección de unidades
                         vehiculosBloqueados.add(vIdVehiculo);
-
                         activosCount++;
                         let ultimaPos = historial[historial.length - 1];
 
@@ -467,7 +466,6 @@
                     document.getElementById('lbl-distancia-usuario').innerHTML = 'Ruta inactiva';
                 }
 
-                // 3. Hacer Zoom automático sobre la ruta escogida y sus elementos
                 if (!centradoInicialRealizado && elementosZoom.length > 0) {
                     const grupo = L.featureGroup(elementosZoom);
                     map.fitBounds(grupo.getBounds().pad(0.3));
