@@ -16,6 +16,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             width: 100%;
             height: 100%;
+            height: 100dvh; /* <-- CORREGIDO: Ocupa todo el alto real del celular */
             overflow: hidden; 
             background: #f8f9fa; 
         }
@@ -27,6 +28,7 @@
             left: 0;
             width: 100%; 
             height: 100%; 
+            height: 100dvh; /* <-- CORREGIDO: Elimina el espacio blanco inferior */
             z-index: 1;
         }
         
@@ -38,6 +40,7 @@
             width: 380px;
             max-width: 85vw;
             height: 100%;
+            height: 100dvh;
             background: #f8f9fa; 
             box-shadow: 4px 0 15px rgba(0,0,0,0.3); 
             z-index: 2000; 
@@ -195,10 +198,12 @@
             #sidebar {
                 transform: translateX(0) !important;
                 position: relative;
+                height: 100vh;
             }
             #map {
                 left: 380px;
                 width: calc(100% - 380px);
+                height: 100vh;
             }
             .floating-menu-btn {
                 display: none !important;
