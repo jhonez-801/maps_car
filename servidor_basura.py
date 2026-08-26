@@ -2,10 +2,8 @@ from flask import Flask, jsonify, request, render_template_string
 
 app = Flask(__name__)
 
-# Diccionario dinámico de vehículos activos
 vehiculos_estado = {}
 
-# 1. INTERFAZ DEL CLIENTE (VECINOS) - Se ve en la raíz "/"
 @app.route('/')
 def cliente_mapa():
     return render_template_string("""
@@ -15,10 +13,7 @@ def cliente_mapa():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>Ruta Basura en Vivo - ATA Ingeniería</title>
-        <!-- Leaflet CSS -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-        <!-- Leaflet Routing Machine CSS para seguir las calles -->
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
         <style>
             * { box-sizing: border-box; }
             html, body { 
@@ -26,15 +21,16 @@ def cliente_mapa():
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                 width: 100%; height: 100%; overflow: hidden; background: #f8f9fa; 
             }
-            body { display: flex; flex-direction: row; }
+            body { display: flex; flex-direction: row; position: relative; }
             
             #sidebar { 
-                width: 400px; height: 100%; background: #f8f9fa; 
-                box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 1000; 
+                width: 380px; height: 100%; background: #ffffff; 
+                box-shadow: 2px 0 10px rgba(0,0,0,0.15); z-index: 1000; 
                 padding: 15px; display: flex; flex-direction: column; 
                 overflow-y: auto; -webkit-overflow-scrolling: touch;
                 transition: transform 0.3s ease-in-out;
             }
+            
             #sidebar-content { flex: 1 0 auto; padding-bottom: 20px; }
             #map { flex: 1; height: 100%; }
             
@@ -72,7 +68,6 @@ def cliente_mapa():
                 padding: 8px 15px; border-radius: 6px; font-weight: bold; font-size: 12px; 
                 margin-top: 5px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
-            .driver-btn:hover { background: #218838; }
 
             #modal-conductor {
                 display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -99,36 +94,42 @@ def cliente_mapa():
             
             .footer-ata { 
                 text-align: center; font-size: 11px; color: #555; padding: 15px 0 10px 0; 
-                margin-top: 15px; border-top: 1px solid #cbd3da; background: #f8f9fa;
+                margin-top: 15px; border-top: 1px solid #cbd3da; background: #ffffff;
             }
 
             @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
             .live-indicator { display: inline-block; width: 8px; height: 8px; background: #28a745; border-radius: 50%; margin-right: 5px; animation: pulse 1.5s infinite; }
 
+            /* Botón flotante superior para abrir el menú en celulares */
             .floating-menu-btn {
                 position: absolute; top: 15px; left: 15px; z-index: 1100; background: white; 
-                border: none; width: 45px; height: 45px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
+                border: 2px solid #ced4da; width: 45px; height: 45px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
                 font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center;
             }
 
-            .leaflet-routing-container { display: none !important; }
-
+            /* ADAPTACIÓN MÓVIL OPTIMIZADA: El mapa ocupa el 100% de la pantalla y el panel es un cajón inferior */
             @media (max-width: 768px) {
                 body { flex-direction: column; }
-                #map { width: 100%; height: 30vh; flex: 0 0 30vh; }
+                #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
                 #sidebar { 
-                    position: absolute; bottom: 0; left: 0; width: 100%; height: 70vh; 
-                    flex: none; box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
-                    transform: translateY(100%); transition: transform 0.3s ease-in-out;
+                    position: absolute; bottom: 0; left: 0; width: 100%; height: 65vh; 
+                    flex: none; box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+                    border-top-left-radius: 16px; border-top-right-radius: 16px;
+                    z-index: 1200;
+                    transform: translateY(0); /* Por defecto abierto para que el vecino elija ruta al entrar, o translateY(calc(100% - 60px)) si prefieres que se oculte más */
+                    transition: transform 0.3s ease-in-out;
                 }
-                #sidebar.open { transform: translateY(0); }
+                #sidebar.collapsed { 
+                    transform: translateY(calc(100% - 65px)); /* Deja una pestaña visible abajo para reabrirlo */
+                }
                 .floating-menu-btn { display: flex; }
             }
         </style>
     </head>
     <body>
 
-        <button class="floating-menu-btn" onclick="toggleSidebar()" id="btn-toggle-movil">☰</button>
+        <!-- Botón flotante para mostrar el menú si está oculto en móvil -->
+        <button class="floating-menu-btn" onclick="toggleSidebarMovil()" id="btn-toggle-movil" style="font-size: 18px; width: auto; padding: 0 12px; gap: 6px;">☰ Rutas</button>
 
         <div id="modal-conductor">
             <div class="modal-content">
@@ -142,21 +143,20 @@ def cliente_mapa():
             </div>
         </div>
 
-        <div id="sidebar">
+        <div id="sidebar" class="">
             <div id="sidebar-content">
                 <div class="driver-link-container">
                     <span style="font-size: 12px; color: #333; display: block; font-weight: bold;">¿Eres conductor de ruta?</span>
-                    <button class="driver-btn" onclick="abrirModalConductor()">🚀 Ingresar como Conductor</button>
+                    <button class="driver-btn" onclick="abrirModalConductor()">🧑‍✈️ Ingresar como Conductor</button>
                 </div>
 
                 <h2>🚚 Rutas Activas en Vivo</h2>
                 <p class="instructions">
-                    <b>Selecciona una ruta activa</b> para hacer zoom y ver su recorrido exacto por las calles.
+                    <b>Selecciona una ruta activa</b> para hacer zoom y ver sus unidades en tiempo real.
                 </p>
 
                 <button class="btn-gps-usuario" onclick="ubicarCliente()">📍 Ubicar mi posición / Casa</button>
 
-                <!-- Contenedor dinámico de rutas activas -->
                 <div id="contenedor-rutas">
                     <p style="font-size: 12px; color: #666; text-align: center;">Cargando rutas activas...</p>
                 </div>
@@ -168,7 +168,7 @@ def cliente_mapa():
                 </div>
             </div>
 
-            <button class="menu-toggle-btn" onclick="toggleSidebar()">✕ Ocultar Panel</button>
+            <button class="menu-toggle-btn" onclick="toggleSidebarMovil()">🔽 Ocultar Panel (Ver Mapa Grande)</button>
 
             <div class="footer-ata">
                 © 2026 <b>ATA</b> (Aplicaciones Tecnológicas Avanzadas). Todos los derechos reservados.
@@ -177,9 +177,7 @@ def cliente_mapa():
 
         <div id="map"></div>
 
-        <!-- Leaflet JS y Leaflet Routing Machine JS -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
         <script>
             const map = L.map('map', { zoomControl: false }).setView([5.3377, -72.3961], 15);
             L.control.zoom({ position: 'topright' }).addTo(map);
@@ -195,7 +193,7 @@ def cliente_mapa():
             let centradoInicialRealizado = false;
 
             let marcadoresVehiculos = {}; 
-            let controlRutasOSRM = {}; 
+            let polylinesVehiculos = {};
 
             const iconoCamion = L.divIcon({
                 className: 'custom-camion-icon',
@@ -231,9 +229,11 @@ def cliente_mapa():
                 }
             }
 
-            function toggleSidebar() {
+            // Control para contraer/expandir el panel inferior en celulares
+            function toggleSidebarMovil() {
                 const sidebar = document.getElementById('sidebar');
-                if (window.innerWidth <= 768) sidebar.classList.toggle('open');
+                sidebar.classList.toggle('collapsed');
+                setTimeout(() => { map.invalidateSize(); }, 300);
             }
 
             map.on('dragstart movestart', () => { centradoInicialRealizado = true; });
@@ -251,7 +251,10 @@ def cliente_mapa():
                         }
                         map.setView(posicionUsuarioCoords, 16);
                         consultarPosicionRuta();
-                        if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+                        if (window.innerWidth <= 768) {
+                            document.getElementById('sidebar').classList.add('collapsed');
+                            setTimeout(() => { map.invalidateSize(); }, 300);
+                        }
                     },
                     () => alert("No se pudo obtener tu ubicación. Revisa los permisos de GPS."),
                     { enableHighAccuracy: true, timeout: 10000 }
@@ -269,26 +272,30 @@ def cliente_mapa():
                 centradoInicialRealizado = false;
                 consultarPosicionRuta();
 
-                if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.add('collapsed');
+                    setTimeout(() => { map.invalidateSize(); }, 300);
+                }
             }
 
             async function consultarPosicionRuta() {
                 try {
                     const res = await fetch('/api/obtener-vehiculos');
-                    const dataRaw = await res.json();
-                    let vehiculos = Array.isArray(dataRaw) ? dataRaw : Object.values(dataRaw);
+                    const vehiculosMap = await res.json();
 
                     let rutasActivasMap = {};
-                    vehiculos.forEach((v) => {
+                    for (let vId in vehiculosMap) {
+                        let v = vehiculosMap[vId];
                         let vRuta = v.ruta;
                         let historial = v.historial;
+
                         if (vRuta && historial && historial.length > 0) {
                             if (!rutasActivasMap[vRuta]) {
                                 rutasActivasMap[vRuta] = { nombre: vRuta.replace('_', ' ').toUpperCase(), cantidad: 0 };
                             }
                             rutasActivasMap[vRuta].cantidad++;
                         }
-                    });
+                    }
 
                     const contenedorRutas = document.getElementById('contenedor-rutas');
                     contenedorRutas.innerHTML = '';
@@ -313,48 +320,33 @@ def cliente_mapa():
 
                     let activosCount = 0;
                     let menorDistanciaMetros = 9999999;
+                    let idsVehiculosEnEstaRuta = new Set();
 
-                    vehiculos.forEach((v) => {
+                    for (let vId in vehiculosMap) {
+                        let v = vehiculosMap[vId];
                         let vRuta = v.ruta;
-                        let vIdVehiculo = v.vehiculo_id;
-                        let vNombre = v.nombre;
+                        let vNombre = v.nombre || ('Camión ' + vId);
                         let historial = v.historial;
 
                         if (vRuta === rutaActivaId && historial && historial.length > 0) {
+                            idsVehiculosEnEstaRuta.add(vId);
                             activosCount++;
-                            let puntoInicio = historial[0];
                             let ultimaPos = historial[historial.length - 1];
 
-                            if (!marcadoresVehiculos[vIdVehiculo]) {
-                                marcadoresVehiculos[vIdVehiculo] = L.marker(ultimaPos, { icon: iconoCamion }).addTo(map)
+                            if (!marcadoresVehiculos[vId]) {
+                                marcadoresVehiculos[vId] = L.marker(ultimaPos, { icon: iconoCamion }).addTo(map)
                                     .bindPopup(`<b>${vNombre}</b><br>Unidad en servicio`);
                             } else {
-                                marcadoresVehiculos[vIdVehiculo].setLatLng(ultimaPos);
+                                marcadoresVehiculos[vId].setLatLng(ultimaPos);
                             }
-                            elementosZoom.push(marcadoresVehiculos[vIdVehiculo]);
+                            elementosZoom.push(marcadoresVehiculos[vId]);
 
-                            if (!controlRutasOSRM[vIdVehiculo]) {
-                                controlRutasOSRM[vIdVehiculo] = L.Routing.control({
-                                    waypoints: [
-                                        L.latLng(puntoInicio[0], puntoInicio[1]),
-                                        L.latLng(ultimaPos[0], ultimaPos[1])
-                                    ],
-                                    router: L.Routing.osrmv1({
-                                        serviceUrl: 'https://router.project-osrm.org/route/v1'
-                                    }),
-                                    lineOptions: {
-                                        styles: [{ color: '#007bff', weight: 6, opacity: 0.8 }]
-                                    },
-                                    addWaypoints: false,
-                                    draggableWaypoints: false,
-                                    fitSelectedRoutes: false,
-                                    show: false
+                            if (!polylinesVehiculos[vId]) {
+                                polylinesVehiculos[vId] = L.polyline(historial, {
+                                    color: '#007bff', weight: 6, opacity: 0.8, lineCap: 'round', lineJoin: 'round'
                                 }).addTo(map);
                             } else {
-                                controlRutasOSRM[vIdVehiculo].setWaypoints([
-                                    L.latLng(puntoInicio[0], puntoInicio[1]),
-                                    L.latLng(ultimaPos[0], ultimaPos[1])
-                                ]);
+                                polylinesVehiculos[vId].setLatLngs(historial);
                             }
 
                             if (posicionUsuarioCoords) {
@@ -362,7 +354,18 @@ def cliente_mapa():
                                 if (dist < menorDistanciaMetros) menorDistanciaMetros = dist;
                             }
                         }
-                    });
+                    }
+
+                    for (let vId in marcadoresVehiculos) {
+                        if (!idsVehiculosEnEstaRuta.has(vId)) {
+                            map.removeLayer(marcadoresVehiculos[vId]);
+                            delete marcadoresVehiculos[vId];
+                            if (polylinesVehiculos[vId]) {
+                                map.removeLayer(polylinesVehiculos[vId]);
+                                delete polylinesVehiculos[vId];
+                            }
+                        }
+                    }
 
                     if (activosCount > 0) {
                         document.getElementById('lbl-coor').textContent = `${activosCount} unidad(es) en vivo`;
@@ -402,118 +405,10 @@ def cliente_mapa():
     </html>
     """)
 
-# 2. PANEL DEL CONDUCTOR - Se ve en "/conductor"
 @app.route('/conductor')
 def panel_conductor():
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ATA - Transmisor GPS</title>
-        <style>
-            body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; background: #f0f2f5; margin: 0; }
-            .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-            input, select, button { width: 100%; padding: 12px; margin-top: 12px; font-size: 15px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-            button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-            button.detener { background: #dc3545; }
-            #estado { margin-top: 15px; font-weight: bold; color: #333; font-size: 13px; line-height: 1.4; }
-            label { text-align: left; display: block; font-size: 12px; font-weight: bold; color: #555; margin-top: 10px; }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2>🚛 Transmisor GPS Camión</h2>
-            
-            <label>Asigna la Ruta:</label>
-            <select id="select-ruta">
-                <option value="ruta_centro">Ruta Centro</option>
-                <option value="ruta_norte">Ruta Norte</option>
-                <option value="ruta_sur">Ruta Sur</option>
-            </select>
+    return "Página del Conductor"
 
-            <label>Nombre o Número del Vehículo:</label>
-            <input type="text" id="input-nombre-vehiculo" value="Camión #12" placeholder="Ej: Compactador 04">
-
-            <button id="btn-transmitir" onclick="toggleTransmision()">🟢 Iniciar Transmisión GPS</button>
-            <div id="estado">Estado: Detenido</div>
-        </div>
-
-        <script>
-            let watchId = null;
-            let transmitiendo = false;
-            let esPrimerPunto = true;
-
-            function toggleTransmision() {
-                const btn = document.getElementById('btn-transmitir');
-                const estadoDiv = document.getElementById('estado');
-                const rutaSelect = document.getElementById('select-ruta');
-                const nombreInput = document.getElementById('input-nombre-vehiculo');
-
-                if (!transmitiendo) {
-                    if (!navigator.geolocation) return alert("Sin soporte de GPS.");
-                    const nombreVehiculo = nombreInput.value.trim();
-                    if (!nombreVehiculo) return alert("Por favor ingresa el nombre del camión.");
-
-                    transmitiendo = true;
-                    esPrimerPunto = true;
-                    rutaSelect.disabled = true;
-                    nombreInput.disabled = true;
-                    btn.textContent = "🔴 Detener Transmisión";
-                    btn.className = "detener";
-                    estadoDiv.textContent = "Obteniendo señal GPS...";
-
-                    watchId = navigator.geolocation.watchPosition(
-                        async (position) => {
-                            const lat = position.coords.latitude;
-                            const lng = position.coords.longitude;
-                            const vehiculoId = nombreVehiculo.toLowerCase().replace(/\\s+/g, '_');
-                            const rutaAsignada = rutaSelect.value;
-
-                            estadoDiv.innerHTML = `Transmitiendo en vivo 🟢<br>Zona: ${rutaAsignada}<br>Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-
-                            try {
-                                const response = await fetch('/api/actualizar-gps', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
-                                        vehiculo_id: vehiculoId, 
-                                        nombre: nombreVehiculo,
-                                        ruta: rutaAsignada,
-                                        lat: lat, 
-                                        lng: lng,
-                                        reiniciarHistorial: esPrimerPunto 
-                                    })
-                                });
-                                const result = await response.json();
-                                if(result.status === "error") {
-                                    alert(result.message);
-                                    toggleTransmision(); // Apagar si el servidor lo rechazó por duplicado
-                                    return;
-                                }
-                                esPrimerPunto = false;
-                            } catch (e) { console.error("Error al enviar GPS", e); }
-                        },
-                        (error) => { estadoDiv.textContent = "Error GPS: " + error.message; },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-                } else {
-                    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-                    transmitiendo = false;
-                    rutaSelect.disabled = false;
-                    nombreInput.disabled = false;
-                    btn.textContent = "🟢 Iniciar Transmisión GPS";
-                    btn.className = "";
-                    estadoDiv.textContent = "Transmisión detenida.";
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """)
-
-# 3. API DINÁMICA: Bloquea estrictamente IDs duplicados en el backend
 @app.route('/api/actualizar-gps', methods=['POST'])
 def actualizar_gps():
     data = request.json
@@ -524,21 +419,9 @@ def actualizar_gps():
     lng = data.get('lng')
     reiniciar = data.get('reiniciarHistorial', False)
 
-    # Validar si este ID ya está registrado y activo por otra sesión/pestaña
-    if vehiculo_id in vehiculos_estado and vehiculos_estado[vehiculo_id].get('activo', True):
-        # Si es la primera inserción de una pestaña NUEVA intentando duplicar un carro ya existente
-        if reiniciar:
-            return jsonify({
-                "status": "error", 
-                "message": f"❌ El vehículo '{nombre}' ya se encuentra transmitiendo en este momento. Usa un número o nombre diferente."
-            }), 400
-
     if vehiculo_id not in vehiculos_estado:
         vehiculos_estado[vehiculo_id] = {
-            "ruta": ruta,
-            "nombre": nombre,
-            "historial": [],
-            "activo": True
+            "ruta": ruta, "nombre": nombre, "historial": [], "activo": True
         }
 
     vehiculos_estado[vehiculo_id]['ruta'] = ruta
@@ -554,12 +437,9 @@ def actualizar_gps():
         
     return jsonify({"status": "success"})
 
-# 4. API PARA CONSULTAR TODOS LOS VEHÍCULOS ACTIVOS
 @app.route('/api/obtener-vehiculos', methods=['GET'])
 def obtener_vehiculos():
-    # Limpiamos o devolvemos únicamente los estados
     return jsonify(vehiculos_estado)
 
 if __name__ == '__main__':
-    print("🚀 Servidor dinámico corriendo en http://127.0.0.1:5000")
     app.run(host='0.0.0.0', port=5000)
