@@ -309,6 +309,20 @@ def cliente_mapa():
                         }
                     }
 
+                    let idsVehiculosEnServidor = new Set(Object.keys(vehiculosMap));
+
+                    // Limpiar marcadores y polilíneas de vehículos que ya no existen o se detuvieron
+                    for (let vId in marcadoresVehiculos) {
+                        if (!idsVehiculosEnServidor.has(vId) || !vehiculosMap[vId].activo || vehiculosMap[vId].historial.length === 0) {
+                            map.removeLayer(marcadoresVehiculos[vId]);
+                            delete marcadoresVehiculos[vId];
+                            if (polylinesVehiculos[vId]) {
+                                map.removeLayer(polylinesVehiculos[vId]);
+                                delete polylinesVehiculos[vId];
+                            }
+                        }
+                    }
+
                     if (!rutaActivaId) return;
 
                     let elementosZoom = [];
@@ -324,7 +338,7 @@ def cliente_mapa():
                         let vNombre = v.nombre || ('Camión ' + vId);
                         let historial = v.historial;
 
-                        if (vRuta === rutaActivaId && historial && historial.length > 0) {
+                        if (vRuta === rutaActivaId && v.activo && historial && historial.length > 0) {
                             idsVehiculosEnEstaRuta.add(vId);
                             activosCount++;
                             let ultimaPos = historial[historial.length - 1];
@@ -348,17 +362,6 @@ def cliente_mapa():
                             if (posicionUsuarioCoords) {
                                 const dist = calcularDistanciaMetros(posicionUsuarioCoords, ultimaPos);
                                 if (dist < menorDistanciaMetros) menorDistanciaMetros = dist;
-                            }
-                        }
-                    }
-
-                    for (let vId in marcadoresVehiculos) {
-                        if (!idsVehiculosEnEstaRuta.has(vId)) {
-                            map.removeLayer(marcadoresVehiculos[vId]);
-                            delete marcadoresVehiculos[vId];
-                            if (polylinesVehiculos[vId]) {
-                                map.removeLayer(polylinesVehiculos[vId]);
-                                delete polylinesVehiculos[vId];
                             }
                         }
                     }
@@ -450,7 +453,7 @@ def panel_conductor():
         <div class="card">
             <h2>🚛 Panel del Conductor</h2>
             <p style="text-align: center; font-size: 12px; color: #666; margin-bottom: 20px;">
-                Configura tus datos para iniciar la transmisión GPS hacia la plataforma de ATA Ingeniería.
+                Transmisión GPS con precisión milimétrica (cada 2 segundos) para ATA Ingeniería.
             </p>
             
             <div class="form-group">
@@ -467,7 +470,7 @@ def panel_conductor():
                 <label>Selecciona la Ruta:</label>
                 <select id="ruta">
                     <option value="ruta_centro">Ruta Centro</option>
-                    <option value="ruta_ norte">Ruta Norte</option>
+                    <option value="ruta_norte">Ruta Norte</option>
                     <option value="ruta_sur">Ruta Sur</option>
                     <option value="ruta_industrial">Ruta Industrial</option>
                 </select>
@@ -476,13 +479,14 @@ def panel_conductor():
             <button class="btn-start" id="btn-accion" onclick="toggleTransmision()">Iniciar Transmisión GPS</button>
 
             <div id="status-box">
-                <span class="live-dot"></span><b>Transmitiendo en vivo...</b><br>
+                <span class="live-dot"></span><b>Transmitiendo en vivo (cada 2s)...</b><br>
                 <span id="coords-info" style="font-size: 11px; color: #555; margin-top: 5px; display:block;">Obteniendo señal GPS...</span>
             </div>
         </div>
 
         <script>
-            let watchId = null;
+            let intervaloEnvio = null;
+            let ultimaPosicionGPS = null;
             let transmitiendo = false;
 
             function toggleTransmision() {
@@ -508,46 +512,60 @@ def panel_conductor():
                     btn.className = "btn-start btn-stop";
                     statusBox.style.display = "block";
 
-                    // Bloquear campos mientras transmite
                     document.getElementById('vehiculo_id').disabled = true;
                     document.getElementById('nombre').disabled = true;
                     document.getElementById('ruta').disabled = true;
 
-                    // Iniciar monitoreo continuo del GPS del celular/dispositivo
-                    watchId = navigator.geolocation.watchPosition(
+                    // Capturar posición continuamente en segundo plano con alta precisión
+                    navigator.geolocation.watchPosition(
                         (position) => {
-                            const lat = position.coords.latitude;
-                            const lng = position.coords.longitude;
-                            document.getElementById('coords-info').textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
-
-                            // Enviar datos al servidor Flask
-                            fetch('/api/actualizar-gps', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    vehiculo_id: vehiculoId,
-                                    nombre: nombre || vehiculoId,
-                                    ruta: ruta,
-                                    lat: lat,
-                                    lng: lng,
-                                    reiniciarHistorial: false
-                                })
-                            }).catch(err => console.error("Error al enviar posición GPS:", err));
+                            // Redondear a 8 decimales para una exactitud milimétrica exacta
+                            const lat = parseFloat(position.coords.latitude.toFixed(8));
+                            const lng = parseFloat(position.coords.longitude.toFixed(8));
+                            ultimaPosicionGPS = { lat, lng };
+                            document.getElementById('coords-info').textContent = `Lat: ${lat}, Lng: ${lng}`;
                         },
-                        (error) => {
-                            alert("⚠️ Error de GPS: " + error.message);
-                        },
+                        (error) => { console.error("Error GPS:", error.message); },
                         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
                     );
 
+                    // Enviar al servidor exactamente cada 2 segundos la posición registrada
+                    intervaloEnvio = setInterval(() => {
+                        if (!ultimaPosicionGPS) return;
+
+                        fetch('/api/actualizar-gps', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                vehiculo_id: vehiculoId,
+                                nombre: nombre || vehiculoId,
+                                ruta: ruta,
+                                lat: ultimaPosicionGPS.lat,
+                                lng: ultimaPosicionGPS.lng,
+                                activo: true,
+                                reiniciarHistorial: false
+                            })
+                        }).catch(err => console.error("Error al enviar posición GPS:", err));
+                    }, 2000);
+
                 } else {
-                    // Detener transmisión
-                    if (watchId !== null) {
-                        navigator.geolocation.clearWatch(watchId);
-                        watchId = null;
+                    // Detener transmisión de inmediato y notificar al servidor para ocultar el camión
+                    if (intervaloEnvio) {
+                        clearInterval(intervaloEnvio);
+                        intervaloEnvio = null;
                     }
 
+                    fetch('/api/actualizar-gps', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            vehiculo_id: vehiculoId,
+                            activo: false
+                        })
+                    }).catch(err => console.error("Error al detener transmisión:", err));
+
                     transmitiendo = false;
+                    ultimaPosicionGPS = null;
                     btn.textContent = "Iniciar Transmisión GPS";
                     btn.className = "btn-start";
                     statusBox.style.display = "none";
@@ -566,11 +584,24 @@ def panel_conductor():
 def actualizar_gps():
     data = request.json
     vehiculo_id = data.get('vehiculo_id')
+    activo = data.get('activo', True)
+
+    if not vehiculo_id:
+        return jsonify({"status": "error"}), 400
+
+    if not activo:
+        if vehiculo_id in vehiculos_estado:
+            vehiculos_estado[vehiculo_id]['activo'] = False
+            vehiculos_estado[vehiculo_id]['historial'] = []
+        return jsonify({"status": "success", "message": "detenido"})
+
     nombre = data.get('nombre', vehiculo_id)
     ruta = data.get('ruta', 'ruta_general')
     lat = data.get('lat')
     lng = data.get('lng')
-    reiniciar = data.get('reiniciarHistorial', False)
+
+    if lat is None or lng is None:
+        return jsonify({"status": "error"}), 400
 
     if vehiculo_id not in vehiculos_estado:
         vehiculos_estado[vehiculo_id] = {
@@ -582,11 +613,9 @@ def actualizar_gps():
     vehiculos_estado[vehiculo_id]['activo'] = True
 
     historial = vehiculos_estado[vehiculo_id]['historial']
-    if reiniciar or not historial:
-        vehiculos_estado[vehiculo_id]['historial'] = [[lat, lng]]
-    else:
-        if historial[-1] != [lat, lng]:
-            historial.append([lat, lng])
+    # Evitar duplicar puntos exactos seguidos si el camión está detenido
+    if not historial or historial[-1] != [lat, lng]:
+        historial.append([lat, lng])
         
     return jsonify({"status": "success"})
 
