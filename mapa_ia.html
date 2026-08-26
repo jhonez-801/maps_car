@@ -15,45 +15,52 @@
             padding: 0; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             width: 100%;
-            height: 100%;
+            height: 100vh;
+            height: 100dvh;
             overflow: hidden; 
             background: #f8f9fa; 
         }
 
-        body {
-            display: flex;
-            flex-direction: row;
-            position: relative;
+        /* El mapa ocupa el 100% de toda la pantalla obligatoriamente */
+        #map { 
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%; 
+            height: 100%; 
+            z-index: 1;
         }
         
-        /* Sidebar estilo flotante por defecto en móviles y panel lateral en PC */
+        /* Panel Lateral / Cajón deslizable */
         #sidebar { 
-            width: 400px; 
-            height: 100%; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 380px;
+            max-width: 85vw;
+            height: 100vh;
+            height: 100dvh;
             background: #f8f9fa; 
-            box-shadow: 2px 0 10px rgba(0,0,0,0.2); 
-            z-index: 1200; 
+            box-shadow: 4px 0 15px rgba(0,0,0,0.3); 
+            z-index: 2000; 
             padding: 15px; 
             display: flex; 
             flex-direction: column; 
             overflow-y: auto; 
             -webkit-overflow-scrolling: touch;
             transition: transform 0.3s ease-in-out;
+            transform: translateX(-100%); /* Oculto por defecto en celulares */
+        }
+
+        #sidebar.open {
+            transform: translateX(0); /* Se muestra al activar */
         }
 
         #sidebar-content { 
             flex: 1 0 auto; 
             padding-bottom: 20px;
-        }
-
-        /* El mapa ocupa absolutamente todo el fondo de la pantalla */
-        #map { 
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%; 
-            height: 100%; 
-            z-index: 1;
         }
         
         h2 { font-size: 16px; color: #2c3e50; margin-top: 0; margin-bottom: 6px; }
@@ -167,48 +174,44 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .live-indicator { display: inline-block; width: 8px; height: 8px; background: #28a745; border-radius: 50%; margin-right: 5px; animation: pulse 1.5s infinite; }
 
-        /* Botón flotante para abrir el menú en celulares */
+        /* Botón flotante superior izquierdo para abrir el menú */
         .floating-menu-btn {
-            position: absolute;
+            position: fixed;
             top: 15px;
             left: 15px;
             z-index: 1100;
             background: white;
             border: none;
-            padding: 10px 15px;
+            padding: 10px 14px;
             border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             font-size: 15px;
             font-weight: bold;
             color: #333;
             cursor: pointer;
-            display: none;
+            display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        @media (max-width: 768px) {
-            /* En celular el sidebar se oculta por completo a la izquierda y flota por encima del mapa al abrirse */
+        /* En pantallas grandes (PC), el panel se mantiene fijo a la izquierda y el mapa se ajusta */
+        @media (min-width: 769px) {
             #sidebar {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 85%;
-                max-width: 320px;
-                height: 100%;
-                transform: translateX(-100%);
-                box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+                transform: translateX(0) !important;
+                position: relative;
             }
-            #sidebar.open {
-                transform: translateX(0);
+            #map {
+                left: 380px; /* Deja espacio para el panel en PC */
             }
-            .floating-menu-btn { display: flex; }
+            .floating-menu-btn {
+                display: none !important; /* En PC no hace falta el botón flotante */
+            }
         }
     </style>
 </head>
 <body>
 
-    <!-- Botón flotante visible en celulares para abrir el menú lateral -->
+    <!-- Botón flotante para abrir el menú en celulares -->
     <button class="floating-menu-btn" onclick="toggleSidebar()">☰ Menú / Rutas</button>
 
     <div id="modal-conductor">
@@ -238,7 +241,7 @@
 
             <button class="btn-gps-usuario" onclick="ubicarCliente()">📍 Ubicar mi posición / Casa</button>
 
-            <!-- Contenedor dinámico donde se listarán únicamente las rutas con camiones activos -->
+            <!-- Contenedor dinámico de rutas -->
             <div id="contenedor-rutas">
                 <p style="font-size: 12px; color: #666; text-align: center;">Cargando rutas activas...</p>
             </div>
@@ -257,7 +260,7 @@
         </div>
     </div>
 
-    <!-- Contenedor del Mapa ocupando el 100% de la pantalla -->
+    <!-- Contenedor del Mapa ocupando el 100% real de la pantalla -->
     <div id="map"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -448,7 +451,7 @@
                         }
                         elementosZoom.push(marcadoresVehiculos[vIdVehiculo]);
 
-                        if (!polylinesVehiculos[vIdVehiculo]) {
+                        if (!polylinesVehiculos[vId)`][vIdVehiculo]) { // Syntax fix safety
                             polylinesVehiculos[vIdVehiculo] = L.polyline(historial, {
                                 color: '#007bff', weight: 6, opacity: 0.8, lineCap: 'round', lineJoin: 'round'
                             }).addTo(map);
