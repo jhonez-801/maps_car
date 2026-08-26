@@ -15,33 +15,29 @@
             padding: 0; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             width: 100%;
-            height: 100vh;
-            height: 100dvh;
+            height: 100%;
             overflow: hidden; 
             background: #f8f9fa; 
         }
 
-        /* El mapa ocupa el 100% de toda la pantalla obligatoriamente */
+        /* El mapa abarca toda la pantalla de forma absoluta */
         #map { 
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
             width: 100%; 
             height: 100%; 
             z-index: 1;
         }
         
-        /* Panel Lateral / Cajón deslizable */
+        /* Panel Lateral tipo cajón deslizable */
         #sidebar { 
             position: fixed;
             top: 0;
             left: 0;
             width: 380px;
             max-width: 85vw;
-            height: 100vh;
-            height: 100dvh;
+            height: 100%;
             background: #f8f9fa; 
             box-shadow: 4px 0 15px rgba(0,0,0,0.3); 
             z-index: 2000; 
@@ -55,7 +51,7 @@
         }
 
         #sidebar.open {
-            transform: translateX(0); /* Se muestra al activar */
+            transform: translateX(0);
         }
 
         #sidebar-content { 
@@ -174,7 +170,7 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .live-indicator { display: inline-block; width: 8px; height: 8px; background: #28a745; border-radius: 50%; margin-right: 5px; animation: pulse 1.5s infinite; }
 
-        /* Botón flotante superior izquierdo para abrir el menú */
+        /* Botón flotante superior izquierdo */
         .floating-menu-btn {
             position: fixed;
             top: 15px;
@@ -194,24 +190,24 @@
             gap: 6px;
         }
 
-        /* En pantallas grandes (PC), el panel se mantiene fijo a la izquierda y el mapa se ajusta */
+        /* Ajustes para PC */
         @media (min-width: 769px) {
             #sidebar {
                 transform: translateX(0) !important;
                 position: relative;
             }
             #map {
-                left: 380px; /* Deja espacio para el panel en PC */
+                left: 380px;
+                width: calc(100% - 380px);
             }
             .floating-menu-btn {
-                display: none !important; /* En PC no hace falta el botón flotante */
+                display: none !important;
             }
         }
     </style>
 </head>
 <body>
 
-    <!-- Botón flotante para abrir el menú en celulares -->
     <button class="floating-menu-btn" onclick="toggleSidebar()">☰ Menú / Rutas</button>
 
     <div id="modal-conductor">
@@ -226,7 +222,6 @@
         </div>
     </div>
 
-    <!-- Panel Lateral / Menú Deslizable -->
     <div id="sidebar">
         <div id="sidebar-content">
             <div class="driver-link-container">
@@ -241,7 +236,6 @@
 
             <button class="btn-gps-usuario" onclick="ubicarCliente()">📍 Ubicar mi posición / Casa</button>
 
-            <!-- Contenedor dinámico de rutas -->
             <div id="contenedor-rutas">
                 <p style="font-size: 12px; color: #666; text-align: center;">Cargando rutas activas...</p>
             </div>
@@ -260,7 +254,6 @@
         </div>
     </div>
 
-    <!-- Contenedor del Mapa ocupando el 100% real de la pantalla -->
     <div id="map"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -451,7 +444,7 @@
                         }
                         elementosZoom.push(marcadoresVehiculos[vIdVehiculo]);
 
-                        if (!polylinesVehiculos[vId)`][vIdVehiculo]) { // Syntax fix safety
+                        if (!polylinesVehiculos[vIdVehiculo]) {
                             polylinesVehiculos[vIdVehiculo] = L.polyline(historial, {
                                 color: '#007bff', weight: 6, opacity: 0.8, lineCap: 'round', lineJoin: 'round'
                             }).addTo(map);
