@@ -181,17 +181,11 @@
 
         @media (max-width: 768px) {
             body { flex-direction: column; }
-            #map { width: 100%; height: 30vh; flex: 0 0 30vh; }
+            #map { width: 100%; height: 100vh; flex: 1; }
             #sidebar { 
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                width: 100%; 
-                height: 70vh; 
-                flex: none; 
-                box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
-                transform: translateY(100%);
-                transition: transform 0.3s ease-in-out;
+                position: absolute; bottom: 0; left: 0; width: 100%; height: 70vh; 
+                flex: none; box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+                transform: translateY(100%); transition: transform 0.3s ease-in-out;
             }
             #sidebar.open { transform: translateY(0); }
             .floating-menu-btn { display: flex; }
