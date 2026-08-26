@@ -183,7 +183,7 @@
             body { flex-direction: column; }
             #map { width: 100%; height: 100vh; flex: 1; }
             #sidebar { 
-                position: absolute; bottom: 0; left: 0; width: 100%; height: 70vh; 
+                position: absolute; bottom: 0; left: 0; width: 100%; height: 50vh; 
                 flex: none; box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
                 transform: translateY(100%); transition: transform 0.3s ease-in-out;
             }
@@ -306,7 +306,6 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('open');
-            // Forzar a Leaflet a recalcular el tamaño cuando se abre o cierra el menú en móviles
             setTimeout(() => {
                 map.invalidateSize();
             }, 300);
@@ -486,9 +485,8 @@
             return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         }
 
-        // Consultar cada 3 segundos para refrescar rutas activas automáticamente
         intervaloConsulta = setInterval(consultarPosicionRuta, 3000);
-        consultarPosicionRuta(); // Carga inicial
+        consultarPosicionRuta();
     </script>
 </body>
 </html>
