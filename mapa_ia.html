@@ -293,7 +293,7 @@
         let marcadoresVehiculos = {}; 
         let polylinesVehiculos = {};
 
-        // Manejo robusto de redimensionamiento y ajuste dinámico en móviles
+        // Sincronización robusta de tamaño para WebView y móviles
         function ajustarMapa() {
             setTimeout(() => {
                 map.invalidateSize(true);
@@ -417,7 +417,6 @@
                 let rutasActivasMap = {};
                 vehiculos.forEach((v, index) => {
                     let vRuta = v.ruta || v.route || v.id_ruta;
-                    let vIdVehiculo = v.id || index;
                     let historial = v.historial || v.history || v.coordenadas;
 
                     if (vRuta && historial && historial.length > 0) {
