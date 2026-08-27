@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, render_template_string
+import math
 
 app = Flask(__name__)
 
@@ -311,7 +312,6 @@ def cliente_mapa():
 
                     let idsVehiculosEnServidor = new Set(Object.keys(vehiculosMap));
 
-                    // Limpiar marcadores y polilíneas de vehículos que ya no existen o se detuvieron
                     for (let vId in marcadoresVehiculos) {
                         if (!idsVehiculosEnServidor.has(vId) || !vehiculosMap[vId].activo || vehiculosMap[vId].historial.length === 0) {
                             map.removeLayer(marcadoresVehiculos[vId]);
@@ -352,8 +352,14 @@ def cliente_mapa():
                             elementosZoom.push(marcadoresVehiculos[vId]);
 
                             if (!polylinesVehiculos[vId]) {
+                                // Se añaden propiedades de suavizado estético para que encaje mejor con las calles
                                 polylinesVehiculos[vId] = L.polyline(historial, {
-                                    color: '#007bff', weight: 6, opacity: 0.8, lineCap: 'round', lineJoin: 'round'
+                                    color: '#007bff', 
+                                    weight: 6, 
+                                    opacity: 0.8, 
+                                    lineCap: 'round', 
+                                    lineJoin: 'round',
+                                    smoothFactor: 1.0
                                 }).addTo(map);
                             } else {
                                 polylinesVehiculos[vId].setLatLngs(historial);
@@ -516,10 +522,8 @@ def panel_conductor():
                     document.getElementById('nombre').disabled = true;
                     document.getElementById('ruta').disabled = true;
 
-                    // Capturar posición continuamente en segundo plano con alta precisión
                     navigator.geolocation.watchPosition(
                         (position) => {
-                            // Redondear a 8 decimales para una exactitud milimétrica exacta
                             const lat = parseFloat(position.coords.latitude.toFixed(8));
                             const lng = parseFloat(position.coords.longitude.toFixed(8));
                             ultimaPosicionGPS = { lat, lng };
@@ -529,7 +533,6 @@ def panel_conductor():
                         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
                     );
 
-                    // Enviar al servidor exactamente cada 2 segundos la posición registrada
                     intervaloEnvio = setInterval(() => {
                         if (!ultimaPosicionGPS) return;
 
@@ -549,7 +552,6 @@ def panel_conductor():
                     }, 2000);
 
                 } else {
-                    // Detener transmisión de inmediato y notificar al servidor para ocultar el camión
                     if (intervaloEnvio) {
                         clearInterval(intervaloEnvio);
                         intervaloEnvio = null;
@@ -608,12 +610,30 @@ def actualizar_gps():
             "ruta": ruta, "nombre": nombre, "historial": [], "activo": True
         }
 
+    historial = vehiculos_estado[vehiculo_id]['historial']
+
+    # FILTRO 1: Descartar micro-vibraciones si el camión se movió menos de 4 metros
+    if historial:
+        ult_lat, ult_lng = historial[-1]
+        R = 6371e3
+        dLat = math.radians(lat - ult_lat)
+        dLng = math.radians(lng - ult_lng)
+        a = math.sin(dLat/2)**2 + math.cos(math.radians(ult_lat))*math.cos(math.radians(lat))*math.sin(dLng/2)**2
+        distancia_metros = R * 2 * math.atan2(math.sqrt(a), Math.sqrt(1-a) if False else math.sqrt(1-a))
+        
+        if distancia_metros < 4:
+            return jsonify({"status": "success", "filtered": True})
+
     vehiculos_estado[vehiculo_id]['ruta'] = ruta
     vehiculos_estado[vehiculo_id]['nombre'] = nombre
     vehiculos_estado[vehiculo_id]['activo'] = True
 
-    historial = vehiculos_estado[vehiculo_id]['historial']
-    # Evitar duplicar puntos exactos seguidos si el camión está detenido
+    # FILTRO 2: Promedio ponderado para suavizar los cambios bruscos de dirección
+    if historial and len(historial) >= 2:
+        penultimo = historial[-1]
+        lat = round(penultimo[0] * 0.3 + lat * 0.7, 8)
+        lng = round(penultimo[1] * 0.3 + lng * 0.7, 8)
+
     if not historial or historial[-1] != [lat, lng]:
         historial.append([lat, lng])
         
